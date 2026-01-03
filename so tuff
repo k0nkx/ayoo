@@ -1,0 +1,95 @@
+-- Services
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+local HttpService = game:GetService("HttpService")
+
+-- WebSocket connect (universal)
+local wsConnect
+if WebSocket and WebSocket.connect then
+    wsConnect = WebSocket.connect
+elseif websocket and websocket.connect then
+    wsConnect = websocket.connect
+elseif syn and syn.websocket and syn.websocket.connect then
+    wsConnect = syn.websocket.connect
+else
+    error("No WebSocket API found")
+end
+
+-- Reconnect safe
+if getgenv().WSConnection then
+    pcall(function() getgenv().WSConnection:Close() end)
+end
+
+local WS = wsConnect("wss://websocketrbx.fly.dev")
+getgenv().WSConnection = WS
+
+-- GUI Setup
+local ChatGui = Instance.new("ScreenGui")
+ChatGui.Name = "WSChatGui"
+ChatGui.ResetOnSpawn = false
+ChatGui.Parent = CoreGui
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 300, 0, 400)
+Frame.Position = UDim2.new(0, 20, 0, 50)
+Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Frame.BorderSizePixel = 0
+Frame.Parent = ChatGui
+
+local ChatList = Instance.new("ScrollingFrame")
+ChatList.Size = UDim2.new(1, -10, 1, -50)
+ChatList.Position = UDim2.new(0, 5, 0, 5)
+ChatList.BackgroundTransparency = 1
+ChatList.CanvasSize = UDim2.new(0, 0, 0, 0)
+ChatList.ScrollBarThickness = 6
+ChatList.Parent = Frame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = ChatList
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 2)
+
+local TextBox = Instance.new("TextBox")
+TextBox.Size = UDim2.new(1, -10, 0, 30)
+TextBox.Position = UDim2.new(0, 5, 1, -35)
+TextBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+TextBox.ClearTextOnFocus = false
+TextBox.PlaceholderText = "Type message..."
+TextBox.Parent = Frame
+
+-- Function to add message to GUI
+local function addMessage(msg)
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, 0, 0, 20)
+    Label.BackgroundTransparency = 1
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Label.Text = msg
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.TextScaled = false
+    Label.TextSize = 14
+    Label.Parent = ChatList
+
+    ChatList.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y)
+    ChatList:ScrollToBottom()
+end
+
+-- Send message
+TextBox.FocusLost:Connect(function(enter)
+    if enter and TextBox.Text ~= "" then
+        local msg = Player.Name .. ": " .. TextBox.Text
+        WS:Send(msg)
+        TextBox.Text = ""
+    end
+end)
+
+-- Receive messages
+WS.OnMessage:Connect(function(msg)
+    addMessage(msg)
+end)
+
+-- Optional: show system connected message
+WS.OnOpen:Connect(function()
+    addMessage("[System] Connected to chat server")
+end)
